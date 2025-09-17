@@ -1,0 +1,21 @@
+{
+  "name": "Krishi Sakhi",
+  "short_name": "Krishi Sakhi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4CAF50",
+  "description": "Your Personal AI Farming Assistant",
+  "icons": [
+    {
+      "src": "/icons/seedling-solid-full.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/seedling-solid-full.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
