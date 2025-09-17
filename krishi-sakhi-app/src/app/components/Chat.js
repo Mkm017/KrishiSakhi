@@ -12,6 +12,7 @@ import Dashboard from './Dashboard';
 import { uiStrings } from '../lib/i18n';
 
 // A new component for the Plot Selection Modal
+// A new component for the Plot Selection Modal
 function PlotSelectorModal({ plots, activePlot, onSelect, onClose }) {
   return (
     <div 
@@ -30,9 +31,9 @@ function PlotSelectorModal({ plots, activePlot, onSelect, onClose }) {
             <li key={plot.id}>
               <button 
                 onClick={() => onSelect(plot)}
-                className={`w-full text-left p-3 my-1 rounded-lg flex items-center justify-between transition-colors ${activePlot?.id === plot.id ? 'bg-green-100 text-green-800 font-bold' : 'hover:bg-gray-100'}`}
+                className={`w-full text-left p-3 my-1 rounded-lg flex items-center justify-between transition-colors ${activePlot?.id === plot.id ? 'bg-green-100 text-green-900 font-bold' : 'hover:bg-gray-100 text-gray-800'}`}
               >
-                <span className="truncate">{plot.plotName}</span>
+                <span className="break-words overflow-hidden pr-2">{plot.plotName}</span>
                 {activePlot?.id === plot.id && <i className="fas fa-check text-green-600 flex-shrink-0 ml-2"></i>}
               </button>
             </li>
