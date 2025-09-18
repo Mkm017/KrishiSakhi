@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import imageCompression from 'browser-image-compression';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { doc, setDoc, collection, query, addDoc, onSnapshot, orderBy } from 'firebase/firestore';
@@ -11,8 +12,7 @@ import Settings from './Settings';
 import Dashboard from './Dashboard';
 import { uiStrings } from '../lib/i18n';
 
-// A new component for the Plot Selection Modal
-// A new component for the Plot Selection Modal
+// A component for the Plot Selection Modal
 function PlotSelectorModal({ plots, activePlot, onSelect, onClose }) {
   return (
     <div 
@@ -55,7 +55,7 @@ export default function Chat({ user }) {
   const [isListening, setIsListening] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isPlotSelectorOpen, setIsPlotSelectorOpen] = useState(false); // State for the new modal
+  const [isPlotSelectorOpen, setIsPlotSelectorOpen] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [plotToEdit, setPlotToEdit] = useState(null);
@@ -82,9 +82,7 @@ export default function Chat({ user }) {
       setInstallPrompt(e);
       setShowInstallButton(true);
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
@@ -106,10 +104,8 @@ export default function Chat({ user }) {
   useEffect(() => {
     const handleOnline = () => setNetworkStatus('online');
     const handleOffline = () => setNetworkStatus('offline');
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -358,10 +354,28 @@ export default function Chat({ user }) {
       openModalForNewPlot();
   }
   
-  const handleFileChange = (event) => {
-      const file = event.target.files[0];
-      if (file) setImagePreview({ file, url: URL.createObjectURL(file) });
-      event.target.value = null;
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    console.log(`Original file size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+
+    const options = {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      console.log(`Compressed file size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
+      setImagePreview({ file: compressedFile, url: URL.createObjectURL(compressedFile) });
+    } catch (error) {
+      console.error("Image compression error:", error);
+      setImagePreview({ file, url: URL.createObjectURL(file) }); // Fallback to original
+    }
+    
+    event.target.value = null;
   };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen bg-gray-100"><p className="text-lg">Loading Your Farm...</p></div>;
@@ -422,7 +436,7 @@ export default function Chat({ user }) {
         <div className="flex-1 flex flex-col overflow-hidden">
           {currentView === 'chat' ? (
             <>
-              {/* --- IMPROVED PLOT SELECTOR BAR --- */}
+              {/* Plot Selector Bar */}
               <div className="p-3 bg-gray-50 z-10 shrink-0 border-b border-gray-200">
                 <div className="bg-white rounded-xl shadow-lg p-3 sm:p-4">
                   {activePlot ? (
@@ -452,25 +466,42 @@ export default function Chat({ user }) {
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
                     <div className={`w-fit max-w-[85%] sm:max-w-[70%] rounded-2xl p-3 shadow relative ${msg.isUser ? 'bg-green-100 text-gray-900' : 'bg-white text-gray-900'}`}>
-                        {msg.imageUrl && ( <div className="relative h-40 sm:h-48 w-full mb-2"><Image src={msg.imageUrl} alt="User upload" layout="fill" objectFit="cover" className="rounded-lg" /></div> )}
+                      
+                      {/* --- THE FIX IS HERE --- */}
+                      {/* This container now has a defined width and aspect ratio, which prevents it from collapsing */}
+                      {msg.imageUrl && ( 
+                        <div className="relative w-[250px] aspect-video mb-2 rounded-lg overflow-hidden sm:w-[300px]">
+                            <Image 
+                              src={msg.imageUrl} 
+                              alt="User upload" 
+                              fill
+                              className="object-cover"
+                            />
+                        </div> 
+                      )}
+                      
+                      {/* Render text only if it exists, allowing for image-only messages */}
+                      {msg.text && (
                         <p className="text-sm sm:text-base" dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br />') }}></p>
-                        {!msg.isUser && !msg.isUpdateSuggestion && (
-                            <div className="absolute -bottom-3 -right-2 flex space-x-1">
-                                {speechState.isSpeaking && speechState.messageId === msg.id ? (
-                                    <>
-                                        <button onClick={() => speechState.isPaused ? handleSpeechControl('resume') : handleSpeechControl('pause')} className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"><i className={`fas ${speechState.isPaused ? 'fa-play' : 'fa-pause'} text-xs`}></i></button>
-                                        <button onClick={() => handleSpeechControl('stop')} className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"><i className="fas fa-stop text-xs"></i></button>
-                                    </>
-                                ) : (
-                                    <button onClick={() => speak(msg.text, msg.id)} className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"><i className="fas fa-volume-up text-xs"></i></button>
-                                )}
-                            </div>
-                        )}
-                        {msg.isUpdateSuggestion && (
-                            <div className="mt-2 pt-2 border-t border-green-200">
-                                <button onClick={() => handleUpdateCrop(activePlot, msg.crop)} className="w-full text-left text-sm font-bold text-green-700 hover:bg-green-200 p-2 rounded-md">{t.updatePlotTo(msg.crop)}</button>
-                            </div>
-                        )}
+                      )}
+
+                      {!msg.isUser && !msg.isUpdateSuggestion && (
+                          <div className="absolute -bottom-3 -right-2 flex space-x-1">
+                              {speechState.isSpeaking && speechState.messageId === msg.id ? (
+                                  <>
+                                      <button onClick={() => speechState.isPaused ? handleSpeechControl('resume') : handleSpeechControl('pause')} className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"><i className={`fas ${speechState.isPaused ? 'fa-play' : 'fa-pause'} text-xs`}></i></button>
+                                      <button onClick={() => handleSpeechControl('stop')} className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"><i className="fas fa-stop text-xs"></i></button>
+                                  </>
+                              ) : (
+                                  <button onClick={() => speak(msg.text, msg.id)} className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"><i className="fas fa-volume-up text-xs"></i></button>
+                              )}
+                          </div>
+                      )}
+                      {msg.isUpdateSuggestion && (
+                          <div className="mt-2 pt-2 border-t border-green-200">
+                              <button onClick={() => handleUpdateCrop(activePlot, msg.crop)} className="w-full text-left text-sm font-bold text-green-700 hover:bg-green-200 p-2 rounded-md">{t.updatePlotTo(msg.crop)}</button>
+                          </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -482,7 +513,7 @@ export default function Chat({ user }) {
                   {imagePreview && (
                       <div className="p-2 bg-gray-100 relative">
                           <div className="relative h-16 w-16 sm:h-20 sm:w-20">
-                              <Image src={imagePreview.url} alt="Preview" layout="fill" objectFit="cover" className="rounded-md" />
+                              <Image src={imagePreview.url} alt="Preview" fill style={{ objectFit: 'cover' }} className="rounded-md" />
                           </div>
                           <button onClick={() => setImagePreview(null)} className="absolute top-0 right-0 m-1 bg-black bg-opacity-50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"><i className="fas fa-times"></i></button>
                       </div>
@@ -492,10 +523,10 @@ export default function Chat({ user }) {
                       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
                       <button title="Upload Image" onClick={() => fileInputRef.current.click()} className="bg-green-100 text-green-700 rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 hover:bg-green-200 transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                    </button>
+                      </button>
                       <input type="text" placeholder={imagePreview ? "Ask about this image..." : t.inputPlaceholder} value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && executeSend()} className="flex-1 p-2 sm:p-3 border border-gray-300 rounded-full text-sm sm:text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500" />
                       <button onClick={executeSend} className="bg-green-600 text-white rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0 hover:bg-green-700"><i className="fas fa-paper-plane text-lg sm:text-xl"></i></button>
                       <button onClick={toggleListen} className={`${isListening ? 'bg-red-500' : 'bg-blue-500'} text-white rounded-full w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center shrink-0`}><i className={`fas ${isListening ? 'fa-microphone-slash' : 'fa-microphone'} text-lg sm:text-xl`}></i></button>
