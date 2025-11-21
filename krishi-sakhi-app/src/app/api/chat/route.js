@@ -44,7 +44,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ text: escalationResponse }), { headers: { 'Content-Type': 'application/json' } });
     }
     
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-09-2025" });
 
     const conversationHistory = messages.map(msg => `${msg.isUser ? 'Farmer' : 'Krishi Sakhi'}: ${msg.text}`).join('\n');
     const languageMap = { 'en': 'English', 'hi': 'Hindi', 'ml': 'Malayalam' };
